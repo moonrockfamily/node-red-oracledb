@@ -1,7 +1,7 @@
 const { release } = require("process");
 
 module.exports = function (RED) {
-    
+
     "use strict";
     var oracledb = require("oracledb");
     oracledb.fetchAsBuffer = [oracledb.BLOB];
@@ -26,7 +26,7 @@ module.exports = function (RED) {
         node.user = node.credentials.user || "hr";
         node.password = node.credentials.password || "hr";
 
-        node.execute = (msg, requestingNode, query, values, resultAction, errorName)=>{
+        node.execute = (msg, requestingNode, query, values, resultAction, errorName) => {
             if (node.connection) {
                 delete node.reconnecting;
                 requestingNode.log("Oracle query execution started");
@@ -36,30 +36,30 @@ module.exports = function (RED) {
                     resultSet: resultAction === "multi"
                 };
 
-                if(Array.isArray(query)){
+                if (Array.isArray(query)) {
                     requestingNode.setStatus('execute');
                     const _promises = [];
-                    query.forEach((e, i)=>{   
+                    query.forEach((e, i) => {
                         // requestingNode.log("execution", e.sql);
-                        if(Array.isArray(e.param)){
+                        if (Array.isArray(e.param)) {
                             const promise = node.connection.executeMany(e.sql, e.param, options);
                             _promises.push(promise);
-                        }else{
+                        } else {
                             const promise = node.connection.execute(e.sql, e.param, options);
                             _promises.push(promise);
                         }
                     });
                     Promise.all(_promises).then((results) => {
                         node.connection.commit();
-                        results.forEach(function (e, i){
-                            if(resultAction === "single"){
-                                if(query[i].name != '' && query[i].name != '_'){
+                        results.forEach(function (e, i) {
+                            if (resultAction === "single") {
+                                if (query[i].name != '' && query[i].name != '_') {
                                     let res = null;
-                                    if(e.rowsAffected){
+                                    if (e.rowsAffected) {
                                         res = e;
-                                    }else if(e.outBinds){
+                                    } else if (e.outBinds) {
                                         res = e.outBinds;
-                                    }else if(e.rows){
+                                    } else if (e.rows) {
                                         res = e.rows;
                                     }
                                     RED.util.setObjectProperty(msg, query[i].name, res, true);
@@ -67,14 +67,14 @@ module.exports = function (RED) {
                             }
                         });
                         requestingNode.setStatus('success');
-                        requestingNode.send([msg,null]);
+                        requestingNode.send([msg, null]);
                     })
-                    .catch(function(error) {
-                        node.connection.rollback();
-                        requestingNode.setStatus('error');
-                        RED.util.setObjectProperty(msg, errorName, error.message, true);
-                        requestingNode.send([null,msg]);
-                    });
+                        .catch(function (error) {
+                            node.connection.rollback();
+                            requestingNode.setStatus('error');
+                            RED.util.setObjectProperty(msg, errorName, error.message, true);
+                            requestingNode.send([null, msg]);
+                        });
                 }
             }
             else {
@@ -88,7 +88,7 @@ module.exports = function (RED) {
                     errorName: errorName
                 });
                 node.claimConnection(requestingNode);
-            }    
+            }
         };
         node.claimConnection = function (requestingNode) {
             node.log("Connection claim started");
@@ -126,7 +126,7 @@ module.exports = function (RED) {
                         // start reconnection process (retry connection claim)
                         if (node.reconnect) {
                             node.log("Retry connection to Oracle server in " + node.reconnectTimeout + " ms");
-                            node.reconnecting = setTimeout(node.claimConnection, node.reconnectTimeout);
+                            node.reconnecting = setTimeout(node.claimConnection, node.reconnectTimeout, requestingNode);
                         }
                     }
                     else {
@@ -147,7 +147,7 @@ module.exports = function (RED) {
             }
         };
     }
-    
+
     RED.nodes.registerType("oracle-server", OracleServer, {
         credentials: {
             user: { type: "text" },
