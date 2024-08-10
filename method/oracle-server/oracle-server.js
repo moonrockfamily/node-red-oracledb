@@ -50,38 +50,40 @@ module.exports = function (RED) {
                         }
                     });
                     Promise.all(_promises).then((results) => {
-                        node.connection.commit();
-                        results.forEach(function (e, i) {
-                            if (resultAction === "single") {
-                                if (query[i].name != '' && query[i].name != '_') {
-                                    let res = null;
-                                    if (e.rowsAffected) {
-                                        res = e;
-                                    } else if (e.outBinds) {
-                                        res = e.outBinds;
-                                    } else if (e.rows) {
-                                        res = e.rows;
+                        return node.connection.commit()
+                            .then(() => {
+                                results.forEach(function (e, i) {
+                                    if (resultAction === "single") {
+                                        if (query[i].name != '' && query[i].name != '_') {
+                                            let res = null;
+                                            if (e.rowsAffected) {
+                                                res = e;
+                                            } else if (e.outBinds) {
+                                                res = e.outBinds;
+                                            } else if (e.rows) {
+                                                res = e.rows;
+                                            }
+                                            RED.util.setObjectProperty(msg, query[i].name, res, true);
+                                        }
                                     }
-                                    RED.util.setObjectProperty(msg, query[i].name, res, true);
-                                }
-                            }
-                        });
-                        requestingNode.setStatus('success');
-                        requestingNode.send([msg, null]);
+                                });
+                                requestingNode.setStatus('success');
+                                requestingNode.send([msg, null]);
+                            });
                     })
                         .catch(function (error) {
                             var errorText = `Oracle-server execution error: ${error.message}`;
-                            try {
-                                node.connection.rollback();
-                                errorText = `${errorText} and Rollback successful`;
-                            } catch (rollbackError) {
-                                errorText = `${errorText} and Rollback failed with error: ${rollbackError.message}`;
-                                // Start reconnection process (retry connection claim)
-                                node.claimConnection(requestingNode);
-                            }
-                            node.error(errorText);
-                            RED.util.setObjectProperty(msg, errorName, errorText, true);
-                            requestingNode.send([null, msg]);
+                            return node.connection.rollback()
+                                .catch(function (rollbackError) {
+                                    errorText = `${errorText} and Rollback failed with error: ${rollbackError.message}`;
+                                    // Start reconnection process (retry connection claim)
+                                    node.claimConnection(requestingNode);
+                                })
+                                .finally(() => {
+                                    node.error(errorText);
+                                    RED.util.setObjectProperty(msg, errorName, errorText, true);
+                                    requestingNode.send([null, msg]);
+                                });
                         });
                 }
             }
