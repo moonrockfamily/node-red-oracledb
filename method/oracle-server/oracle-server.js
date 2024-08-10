@@ -70,15 +70,23 @@ module.exports = function (RED) {
                         requestingNode.send([msg, null]);
                     })
                         .catch(function (error) {
-                            node.connection.rollback();
-                            requestingNode.setStatus('error');
-                            RED.util.setObjectProperty(msg, errorName, error.message, true);
+                            var errorText = `Oracle-server execution error: ${error.message}`;
+                            try {
+                                node.connection.rollback();
+                                errorText = `${errorText} and Rollback successful`;
+                            } catch (rollbackError) {
+                                errorText = `${errorText} and Rollback failed with error: ${rollbackError.message}`;
+                                // Start reconnection process (retry connection claim)
+                                node.claimConnection(requestingNode);
+                            }
+                            node.error(errorText);
+                            RED.util.setObjectProperty(msg, errorName, errorText, true);
                             requestingNode.send([null, msg]);
                         });
                 }
             }
             else {
-                requestingNode.log("Oracle query execution queued");
+                node.log("Oracle query execution queued");
                 node.queryQueue.push({
                     msg: msg,
                     requestingNode: requestingNode,
@@ -95,15 +103,13 @@ module.exports = function (RED) {
             if (!node.Connection && !node.connectionInProgress) {
                 node.connectionInProgress = true;
                 // Create the connection for the Oracle server
-                if (!node.instantclientpath) {
-                    node.error("You must set the Instant Client Path!");
-                }
-                else {
+                if (node.instantclientpath) {
                     try {
                         oracledb.initOracleClient({ libDir: node.instantclientpath });
                     }
                     catch (err) {
-                        // do nothing
+                        node.error("Oracle Instant Client error: " + err.message);
+                        // proceed with fallback to default Oracle client
                     }
                 }
                 if (node.tnsname) {
