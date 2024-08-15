@@ -27,7 +27,7 @@ module.exports = function (RED) {
         node.password = node.credentials.password || "hr";
 
         node.execute = (msg, requestingNode, query, values, resultAction, errorName) => {
-            if (node.connection) {
+            if (node.connection?.isHealthy()) {
                 delete node.reconnecting;
                 requestingNode.log("Oracle query execution started");
                 var options = {
