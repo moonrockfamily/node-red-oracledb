@@ -37,7 +37,7 @@ module.exports = function (RED) {
                 };
 
                 if (Array.isArray(query)) {
-                    requestingNode.setStatus('executing', `${query.length} queries`);
+                    requestingNode.setStatus('executing');
                     const _promises = [];
                     query.forEach((e, i) => {
                         // requestingNode.log("execution", e.sql);
@@ -67,7 +67,7 @@ module.exports = function (RED) {
                                         }
                                     }
                                 });
-                                requestingNode.setStatus('success', `${query.length} queries executed`);
+                                requestingNode.setStatus('success');
                                 requestingNode.send([msg, null]);
                             });
                     })
@@ -78,7 +78,7 @@ module.exports = function (RED) {
                                     errorText = `${errorText} and Rollback failed with error: ${rollbackError.message}`;
                                     // Forget connection, its not working anymore ...
                                     // No worries, the execute function will claim a new connection!
-                                    requestingNode.setStatus('error', errorText);
+                                    requestingNode.setStatus(errorText);
                                     delete node.connection;
                                 })
                                 .finally(() => {
@@ -91,6 +91,7 @@ module.exports = function (RED) {
             }
             else {
                 requestingNode.log("execution queued");
+                requestingNode.setStatus('queued');
                 node.queryQueue.push({
                     msg: msg,
                     requestingNode: requestingNode,
@@ -125,7 +126,7 @@ module.exports = function (RED) {
                     }
                 }
                 node.firstConnection = false;
-                requestingNode.setStatus('connecting', node.connectString);
+                requestingNode.setStatus('connecting');
                 node.log(`connecting to ${node.connectString}`);
                 oracledb.getConnection({
                     user: node.user,
@@ -144,7 +145,7 @@ module.exports = function (RED) {
                         }
                     }
                     else {
-                        requestingNode.setStatus('connected', node.connectString);
+                        requestingNode.setStatus('connected');
                         node.connection = connection;
                         node.log(`connected to ${node.connectString}`);
                         node.queryQueued();
