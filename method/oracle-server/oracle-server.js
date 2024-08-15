@@ -37,7 +37,7 @@ module.exports = function (RED) {
                 };
 
                 if (Array.isArray(query)) {
-                    requestingNode.setStatus('execute');
+                    requestingNode.setStatus('executing', `${query.length} queries`);
                     const _promises = [];
                     query.forEach((e, i) => {
                         // requestingNode.log("execution", e.sql);
@@ -67,18 +67,19 @@ module.exports = function (RED) {
                                         }
                                     }
                                 });
-                                requestingNode.setStatus('success');
+                                requestingNode.setStatus('success', `${query.length} queries executed`);
                                 requestingNode.send([msg, null]);
                             });
                     })
                         .catch(function (error) {
-                            var errorText = `Oracle-server execution error: ${error.message}`;
+                            var errorText = error.message;
                             return node.connection.rollback()
                                 .catch(function (rollbackError) {
                                     errorText = `${errorText} and Rollback failed with error: ${rollbackError.message}`;
                                     // Forget connection, its not working anymore ...
                                     // No worries, the execute function will claim a new connection!
-                                    node.connection = null;
+                                    requestingNode.setStatus('error', errorText);
+                                    delete node.connection;
                                 })
                                 .finally(() => {
                                     node.error(errorText);
@@ -89,7 +90,7 @@ module.exports = function (RED) {
                 }
             }
             else {
-                node.log("Oracle query execution queued");
+                requestingNode.log("execution queued");
                 node.queryQueue.push({
                     msg: msg,
                     requestingNode: requestingNode,
@@ -102,16 +103,18 @@ module.exports = function (RED) {
             }
         };
         node.claimConnection = function (requestingNode) {
-            node.log("Connection claim started");
             if (!node.Connection && !node.connectionInProgress) {
+                node.log(`claimConnection in progress to ${node.connectString}`);
                 node.connectionInProgress = true;
                 // Create the connection for the Oracle server
                 if (node.instantclientpath) {
                     try {
+                        node.log(`initializing Oracle Client ${node.instantclientpath}`);
                         oracledb.initOracleClient({ libDir: node.instantclientpath });
+                        node.log(`initialized Oracle Client ${node.instantclientpath}`);
                     }
                     catch (err) {
-                        node.error("Oracle Instant Client error: " + err.message);
+                        node.error("initializing Oracle Client error: " + err.message);
                         // proceed with fallback to default Oracle client
                     }
                 }
@@ -122,7 +125,8 @@ module.exports = function (RED) {
                     node.connectString = node.host + ":" + node.port + (node.db ? "/" + node.db : "");
                 }
                 node.firstConnection = false;
-                requestingNode.setStatus('Connecting');
+                requestingNode.setStatus('connecting', node.connectString);
+                node.log(`connecting to ${node.connectString}`);
                 oracledb.getConnection({
                     user: node.user,
                     password: node.password,
@@ -130,22 +134,25 @@ module.exports = function (RED) {
                 }, function (err, connection) {
                     node.connectionInProgress = false;
                     if (err) {
-                        requestingNode.setStatus('error', 'Oracle-server error connection');
-                        node.error("Oracle-server error connection to " + node.connectString + ": " + err.message);
+                        const errorText = `getConnection error: ${err.message}`;
+                        requestingNode.setStatus('error', errorText);
+                        node.error(errorText);
                         // start reconnection process (retry connection claim)
                         if (node.reconnect) {
-                            node.log("Retry connection to Oracle server in " + node.reconnectTimeout + " ms");
+                            node.log(`reconnecting to ${node.connectString} in ${node.reconnectTimeout} ms`);
                             node.reconnecting = setTimeout(node.claimConnection, node.reconnectTimeout, requestingNode);
                         }
                     }
                     else {
-                        requestingNode.setStatus('Connected');
+                        requestingNode.setStatus('connected', node.connectString);
                         node.connection = connection;
-                        node.log("Connected to Oracle server " + node.connectString);
+                        node.log(`connected to ${node.connectString}`);
                         node.queryQueued();
                         delete node.reconnecting;
                     }
                 });
+            } else {
+                node.log("Connection already in progress");
             }
             return node.status;
         };
