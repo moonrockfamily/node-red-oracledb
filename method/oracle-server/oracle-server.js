@@ -76,8 +76,9 @@ module.exports = function (RED) {
                             return node.connection.rollback()
                                 .catch(function (rollbackError) {
                                     errorText = `${errorText} and Rollback failed with error: ${rollbackError.message}`;
-                                    // Start reconnection process (retry connection claim)
-                                    node.claimConnection(requestingNode);
+                                    // Forget connection, its not working anymore ...
+                                    // No worries, the execute function will claim a new connection!
+                                    node.connection = null;
                                 })
                                 .finally(() => {
                                     node.error(errorText);
