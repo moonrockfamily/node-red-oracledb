@@ -104,7 +104,7 @@ module.exports = function (RED) {
             }
         };
         node.claimConnection = function (requestingNode) {
-            if (!node.Connection && !node.connectionInProgress) {
+            if (!node.Connection && !node.connectionInProgress && !node.reconnecting) {
                 if (node.tnsname) {
                     node.connectString = node.tnsname;
                 }
@@ -140,8 +140,11 @@ module.exports = function (RED) {
                         node.error(errorText);
                         // start reconnection process (retry connection claim)
                         if (node.reconnect) {
-                            node.log(`reconnecting to ${node.connectString} in ${node.reconnectTimeout} ms`);
-                            node.reconnecting = setTimeout(node.claimConnection, node.reconnectTimeout, requestingNode);
+                            node.log(`claimConnection waiting ${node.reconnectTimeout} ms to reconnect to ${node.connectString}`);
+                            node.reconnecting = setTimeout(function () {
+                                delete node.reconnecting;
+                                node.claimConnection(requestingNode);
+                            }, node.reconnectTimeout);
                         }
                     }
                     else {
@@ -149,7 +152,6 @@ module.exports = function (RED) {
                         node.connection = connection;
                         node.log(`connected to ${node.connectString}`);
                         node.queryQueued();
-                        delete node.reconnecting;
                     }
                 });
             } else {
