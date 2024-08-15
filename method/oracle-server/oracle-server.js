@@ -104,6 +104,12 @@ module.exports = function (RED) {
         };
         node.claimConnection = function (requestingNode) {
             if (!node.Connection && !node.connectionInProgress) {
+                if (node.tnsname) {
+                    node.connectString = node.tnsname;
+                }
+                else {
+                    node.connectString = node.host + ":" + node.port + (node.db ? "/" + node.db : "");
+                }
                 node.log(`claimConnection in progress to ${node.connectString}`);
                 node.connectionInProgress = true;
                 // Create the connection for the Oracle server
@@ -117,12 +123,6 @@ module.exports = function (RED) {
                         node.error("initializing Oracle Client error: " + err.message);
                         // proceed with fallback to default Oracle client
                     }
-                }
-                if (node.tnsname) {
-                    node.connectString = node.tnsname;
-                }
-                else {
-                    node.connectString = node.host + ":" + node.port + (node.db ? "/" + node.db : "");
                 }
                 node.firstConnection = false;
                 requestingNode.setStatus('connecting', node.connectString);
